@@ -220,4 +220,12 @@ To disable encryption at rest:
    ```shell
    kubectl get secrets --all-namespaces -o json | kubectl replace -f -
    ```
+## KMS v2
 
+* Kubernetes version 1.25.0 or later is required
+
+* etcd v3 or later is required
+
+{{< feature-state for_k8s_version="v1.25" state="alpha" >}}
+
+[PLACEHOLDER]
