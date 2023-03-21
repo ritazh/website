@@ -15,7 +15,7 @@ better performance characteristics than v1.
 {{< include "task-tutorial-prereqs.md" >}}
 
 The version of Kubernetes that you need depends on which KMS API version
-you have selected. 
+you have selected.
 
 - If you selected KMS API v1, any supported Kubernetes version will work fine.
 - If you selected KMS API v2, you should use Kubernetes v{{< skew currentVersion >}}
@@ -57,6 +57,16 @@ that a KEK rotation has occurred (see `key_id` section below).
 The KMS provider uses gRPC to communicate with a specific KMS plugin over a UNIX domain socket.
 The KMS plugin, which is implemented as a gRPC server and deployed on the same host(s)
 as the Kubernetes control plane, is responsible for all communication with the remote KMS.
+
+{{< caution >}}
+Virtual machine (VM) save state and restore operations are not supported with KMS v2.
+
+The API server uses AES-GCM with a 12 byte nonce (8 byte atomic counter and 4 bytes random data) for encryption. The following issues could occur if the VM is saved and restored:
+1. The counter value may be lost or corrupted if the VM is saved in an inconsistent state or restored improperly. This can lead to a situation where the same counter value is used twice, resulting in the same nonce being used for two different messages.
+2. If the VM is restored to a previous state, the counter value may be set back to its previous value, resulting in the same nonce being used again.
+
+Although both of these cases are partially mitigated by the 4 byte random nonce, this can compromise the security of the encryption.
+{{< /caution >}}
 
 ## Configuring the KMS provider
 
@@ -104,7 +114,7 @@ you use a proto file to create a stub file that you can use to develop the gRPC 
 #### KMS v1 {#developing-a-kms-plugin-gRPC-server-kms-v1}
 * Using Go: Use the functions and data structures in the stub file:
   [api.pb.go](https://github.com/kubernetes/kms/blob/release-{{< skew currentVersion >}}/apis/v1beta1/api.pb.go)
-  to develop the gRPC server code 
+  to develop the gRPC server code
 
 * Using languages other than Go: Use the protoc compiler with the proto file:
   [api.proto](https://github.com/kubernetes/kms/blob/release-{{< skew currentVersion >}}/apis/v1beta1/api.proto)
@@ -116,7 +126,7 @@ you use a proto file to create a stub file that you can use to develop the gRPC 
   is provided to make the process easier.  Low level implementations
   can use the functions and data structures in the stub file:
   [api.pb.go](https://github.com/kubernetes/kms/blob/release-{{< skew currentVersion >}}/apis/v2/api.pb.go)
-  to develop the gRPC server code 
+  to develop the gRPC server code
 
 * Using languages other than Go: Use the protoc compiler with the proto file:
   [api.proto](https://github.com/kubernetes/kms/blob/release-{{< skew currentVersion >}}/apis/v2/api.proto)
@@ -202,12 +212,12 @@ Then use the functions and data structures in the stub file to develop the serve
 
 * protocol: UNIX domain socket (`unix`)
 
-  The plugin is implemented as a gRPC server that listens at UNIX domain socket. The plugin deployment should create a file on the file system to run the gRPC unix domain socket connection. The API server (gRPC client) is configured with the KMS provider (gRPC server) unix domain socket endpoint in order to communicate with it. An abstract Linux socket may be used by starting the endpoint with `/@`, i.e. `unix:///@foo`. Care must be taken when using this type of socket as they do not have concept of ACL (unlike traditional file based sockets). However, they are subject to Linux networking namespace, so will only be accessible to containers within the same pod unless host networking is used. 
+  The plugin is implemented as a gRPC server that listens at UNIX domain socket. The plugin deployment should create a file on the file system to run the gRPC unix domain socket connection. The API server (gRPC client) is configured with the KMS provider (gRPC server) unix domain socket endpoint in order to communicate with it. An abstract Linux socket may be used by starting the endpoint with `/@`, i.e. `unix:///@foo`. Care must be taken when using this type of socket as they do not have concept of ACL (unlike traditional file based sockets). However, they are subject to Linux networking namespace, so will only be accessible to containers within the same pod unless host networking is used.
 
 ### Integrating a KMS plugin with the remote KMS
 
 The KMS plugin can communicate with the remote KMS using any protocol supported by the KMS.
-All configuration data, including authentication credentials the KMS plugin uses to communicate with the remote KMS, 
+All configuration data, including authentication credentials the KMS plugin uses to communicate with the remote KMS,
 are stored and managed by the KMS plugin independently.
 The KMS plugin can encode the ciphertext with additional metadata that may be required before sending it to the KMS
 for decryption (KMS v2 makes this process easier by providing a dedicated `annotations` field).
@@ -280,12 +290,12 @@ Setting `--encryption-provider-config-automatic-reload` to `true` collapses all 
 
 The following table summarizes the health check endpoints for each KMS version:
 
-| KMS configurations        | Without Automatic Reload           | With Automatic Reload  |
-| ------------------------- |------------------------------------| -----------------------|
-| KMS v1 only               | Individual Healthchecks            | Single Healthcheck     |
-| KMS v2 only               | Single Healthcheck                 | Single Healthcheck     |
-| Both KMS v1 and v2        | Individual Healthchecks            | Single Healthcheck     |
-| No KMS                    | None                               | Single Healthcheck     |
+| KMS configurations | Without Automatic Reload | With Automatic Reload |
+| ------------------ | ------------------------ | --------------------- |
+| KMS v1 only        | Individual Healthchecks  | Single Healthcheck    |
+| KMS v2 only        | Single Healthcheck       | Single Healthcheck    |
+| Both KMS v1 and v2 | Individual Healthchecks  | Single Healthcheck    |
+| No KMS             | None                     | Single Healthcheck    |
 
 `Single Healthcheck` means that the only health check endpoint is `/healthz/kms-providers`.
 
@@ -304,7 +314,7 @@ For details about the `EncryptionConfiguration` format, please check the
 
 ## Verifying that the data is encrypted
 
-Data is encrypted when written to etcd. After restarting your `kube-apiserver`, 
+Data is encrypted when written to etcd. After restarting your `kube-apiserver`,
 any newly created or updated Secret or other resource types configured in `EncryptionConfiguration` should be encrypted when stored. To verify,
 you can use the `etcdctl` command line program to retrieve the contents of your secret data.
 
@@ -380,7 +390,7 @@ To switch from a local encryption provider to the `kms` provider and re-encrypt 
 
 To disable encryption at rest:
 
-1. Place the `identity` provider as the first entry in the configuration file: 
+1. Place the `identity` provider as the first entry in the configuration file:
 
    ```yaml
    apiVersion: apiserver.config.k8s.io/v1
@@ -396,7 +406,7 @@ To disable encryption at rest:
              endpoint: unix:///tmp/socketfile.sock
    ```
 
-1. Restart all `kube-apiserver` processes. 
+1. Restart all `kube-apiserver` processes.
 
 1. Run the following command to force all secrets to be decrypted.
 
